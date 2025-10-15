@@ -1,10 +1,23 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from datetime import datetime, timedelta
 import random
+
+# Try to import matplotlib with error handling
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    st.warning("Matplotlib is not installed. Some visualizations will be disabled.")
+
+# Try to import seaborn with error handling
+try:
+    import seaborn as sns
+    SEABORN_AVAILABLE = True
+except ImportError:
+    SEABORN_AVAILABLE = True  # We'll use matplotlib alternatives
 
 # Set page configuration
 st.set_page_config(
@@ -57,6 +70,16 @@ class AIHealthcareAssistant:
                 'symptoms': ['chest_pain', 'shortness_of_breath'],
                 'severity': 'emergency',
                 'recommendation': 'CALL EMERGENCY SERVICES IMMEDIATELY'
+            },
+            'migraine': {
+                'symptoms': ['headache', 'nausea'],
+                'severity': 'moderate',
+                'recommendation': 'Rest in dark room, stay hydrated, consider pain relief'
+            },
+            'food_poisoning': {
+                'symptoms': ['nausea', 'vomiting'],
+                'severity': 'moderate',
+                'recommendation': 'Stay hydrated, rest, avoid solid foods initially'
             }
         }
     
@@ -73,8 +96,9 @@ class AIHealthcareAssistant:
         
         # Normalize scores based on total symptoms for each disease
         for disease, score in disease_scores.items():
-            total_symptoms = len(self.diseases_db[disease]['symptoms'])
-            disease_scores[disease] = score / total_symptoms * 100
+            if disease in self.diseases_db:
+                total_symptoms = len(self.diseases_db[disease]['symptoms'])
+                disease_scores[disease] = (score / total_symptoms * 100) if total_symptoms > 0 else 0
         
         return dict(sorted(disease_scores.items(), key=lambda x: x[1], reverse=True))
     
@@ -125,7 +149,7 @@ class HealthMonitor:
     def analyze_trends(self):
         """Time series analysis using HMM concepts"""
         if len(self.vital_signs_history) < 2:
-            return "Insufficient data for trend analysis"
+            return ["Insufficient data for trend analysis"]
         
         df = pd.DataFrame(self.vital_signs_history)
         trends = []
@@ -140,6 +164,23 @@ class HealthMonitor:
         trends.append(f"Heart rate trend: {hr_trend}")
         return trends
 
+def create_simple_plot(data, title, color='blue'):
+    """Create simple plots without matplotlib"""
+    if MATPLOTLIB_AVAILABLE:
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.plot(data['dates'], data['values'], color=color, linewidth=2)
+        ax.set_title(title)
+        ax.grid(True, alpha=0.3)
+        return fig
+    else:
+        # Fallback: display data as table
+        st.write(f"**{title}**")
+        display_data = pd.DataFrame({
+            'Date': data['dates'],
+            'Value': data['values']
+        })
+        st.dataframe(display_data)
+
 def main():
     st.title("🏥 AI Healthcare Assistant")
     st.markdown("""
@@ -151,6 +192,19 @@ def main():
     - **Markov Models** - Vital signs trend analysis
     - **Knowledge Representation** - Medical knowledge base
     """)
+    
+    # Installation instructions if libraries are missing
+    if not MATPLOTLIB_AVAILABLE:
+        st.error("""
+        **Required packages not installed!** 
+        
+        Please install the required packages using:
+        ```bash
+        pip install matplotlib seaborn
+        ```
+        
+        Or for Streamlit Cloud, add these to your requirements.txt file.
+        """)
     
     # Initialize AI assistant
     assistant = AIHealthcareAssistant()
@@ -185,25 +239,32 @@ def main():
                     
                     st.subheader("Possible Conditions:")
                     for disease, confidence in list(results.items())[:3]:
-                        disease_info = assistant.diseases_db.get(disease, {})
-                        severity = disease_info.get('severity', 'unknown')
-                        recommendation = disease_info.get('recommendation', 'Consult a healthcare professional')
-                        
-                        # Color code based on severity
-                        if severity == 'emergency':
-                            color = 'red'
-                        elif severity == 'high':
-                            color = 'orange'
-                        else:
-                            color = 'green'
-                        
-                        st.markdown(f"""
-                        <div style='border-left: 5px solid {color}; padding: 10px; margin: 10px 0;'>
-                            <h4>{disease.replace('_', ' ').title()} ({confidence:.1f}% match)</h4>
-                            <p><strong>Severity:</strong> {severity.title()}</p>
-                            <p><strong>Recommendation:</strong> {recommendation}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        if confidence > 0:  # Only show diseases with some match
+                            disease_info = assistant.diseases_db.get(disease, {})
+                            severity = disease_info.get('severity', 'unknown')
+                            recommendation = disease_info.get('recommendation', 'Consult a healthcare professional')
+                            
+                            # Color code based on severity
+                            if severity == 'emergency':
+                                color = 'red'
+                            elif severity == 'high':
+                                color = 'orange'
+                            else:
+                                color = 'green'
+                            
+                            st.markdown(f"""
+                            <div style='border-left: 5px solid {color}; padding: 10px; margin: 10px 0;'>
+                                <h4>{disease.replace('_', ' ').title()} ({confidence:.1f}% match)</h4>
+                                <p><strong>Severity:</strong> {severity.title()}</p>
+                                <p><strong>Recommendation:</strong> {recommendation}</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+        
+        # Add some sample symptoms for quick testing
+        st.sidebar.subheader("Quick Test")
+        if st.sidebar.button("Test Common Cold Symptoms"):
+            st.experimental_set_query_params(symptoms=["fever", "cough", "headache"])
+            st.rerun()
     
     elif app_mode == "Health Risk Assessment":
         st.header("📊 Health Risk Assessment")
@@ -271,10 +332,11 @@ def main():
         
         with col1:
             st.subheader("Add Medication")
-            med_name = st.text_input("Medication Name")
+            med_name = st.text_input("Medication Name", "Aspirin")
             schedule_times = st.multiselect(
                 "Schedule Times",
-                ["08:00", "12:00", "18:00", "20:00", "22:00"]
+                ["08:00", "12:00", "18:00", "20:00", "22:00"],
+                default=["08:00", "20:00"]
             )
             
             if st.button("Add to Schedule"):
@@ -351,7 +413,7 @@ def main():
         st.write("AI-powered health data visualization and insights")
         
         # Generate sample health data
-        dates = pd.date_range(start='2024-01-01', end='2024-03-01', freq='D')
+        dates = pd.date_range(start='2024-01-01', periods=60, freq='D')
         heart_rates = np.random.normal(75, 10, len(dates))
         steps = np.random.randint(3000, 15000, len(dates))
         sleep_hours = np.random.normal(7.5, 1, len(dates))
@@ -363,25 +425,33 @@ def main():
             'Sleep Hours': sleep_hours
         })
         
-        # Create visualizations
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Heart Rate Trends")
-            fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(health_data['Date'], health_data['Heart Rate'], color='red', linewidth=2)
-            ax.set_ylabel('Heart Rate (bpm)')
-            ax.grid(True, alpha=0.3)
-            st.pyplot(fig)
-        
-        with col2:
-            st.subheader("Activity Levels")
-            fig, ax = plt.subplots(figsize=(10, 4))
-            ax.bar(health_data['Date'][::7], health_data['Daily Steps'][::7], 
-                   color='blue', alpha=0.7, width=5)
-            ax.set_ylabel('Daily Steps')
-            ax.grid(True, alpha=0.3)
-            st.pyplot(fig)
+        if MATPLOTLIB_AVAILABLE:
+            # Create visualizations
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Heart Rate Trends")
+                fig, ax = plt.subplots(figsize=(10, 4))
+                ax.plot(health_data['Date'], health_data['Heart Rate'], color='red', linewidth=2)
+                ax.set_ylabel('Heart Rate (bpm)')
+                ax.grid(True, alpha=0.3)
+                st.pyplot(fig)
+            
+            with col2:
+                st.subheader("Activity Levels")
+                fig, ax = plt.subplots(figsize=(10, 4))
+                ax.bar(health_data['Date'][::7], health_data['Daily Steps'][::7], 
+                       color='blue', alpha=0.7, width=5)
+                ax.set_ylabel('Daily Steps')
+                ax.grid(True, alpha=0.3)
+                st.pyplot(fig)
+        else:
+            # Show data tables instead of plots
+            st.subheader("Heart Rate Data")
+            st.dataframe(health_data[['Date', 'Heart Rate']].head(10))
+            
+            st.subheader("Activity Data")
+            st.dataframe(health_data[['Date', 'Daily Steps']].head(10))
         
         # AI Insights
         st.subheader("AI Health Insights")
@@ -438,6 +508,13 @@ def main():
                     "Call emergency services",
                     "Do not remove embedded objects",
                     "Keep victim warm and still"
+                ],
+                "Stroke Symptoms": [
+                    "Call emergency services immediately",
+                    "Note time when symptoms started",
+                    "Do not give food or drink",
+                    "Keep person comfortable",
+                    "Be prepared to perform CPR if needed"
                 ]
             }
             
@@ -456,9 +533,11 @@ def main():
             st.subheader("Emergency Contacts")
             col1, col2 = st.columns(2)
             with col1:
-                st.button("🚑 Call Emergency Services")
+                if st.button("🚑 Call Emergency Services"):
+                    st.info("Dialing 911... Please describe the emergency clearly.")
             with col2:
-                st.button("📞 Contact Emergency Contact")
+                if st.button("📞 Contact Emergency Contact"):
+                    st.info("Calling your emergency contact...")
             
             # Location sharing
             st.info("📍 Share your location with emergency services for faster response")
@@ -469,6 +548,9 @@ def main():
     <div style='text-align: center'>
         <p>This AI Healthcare Assistant demonstrates multiple AI concepts including:</p>
         <small>Intelligent Agents • Search Algorithms • Bayesian Networks • Markov Models • Constraint Satisfaction • Knowledge Representation</small>
+        <br><br>
+        <p><strong>Installation Note:</strong> If graphs are not showing, install required packages:</p>
+        <code>pip install matplotlib seaborn</code>
     </div>
     """, unsafe_allow_html=True)
 
