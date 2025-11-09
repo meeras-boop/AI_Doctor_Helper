@@ -728,8 +728,7 @@ def main():
                     "Manhattan": assistant.astar_checker.heuristic_manhattan,
                     "Euclidean": assistant.astar_checker.heuristic_euclidean,
                     "Symptom Frequency": assistant.astar_checker.heuristic_symptom_frequency,
-                    "Severity Weighted": assistant.astar_checker.heuristic_severity_weighted,
-                    "Risk-Aware (NEW)": assistant.astar_checker.heuristic_risk_aware
+                    "Severity Weighted": assistant.astar_checker.heuristic_severity_weighted
                 }
                 
                 if heuristic_choice == "Risk-Aware (NEW)":
