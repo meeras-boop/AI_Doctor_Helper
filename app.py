@@ -718,7 +718,7 @@ def main():
         
         heuristic_choice = st.selectbox(
             "Choose A* Heuristic:",
-            ["Manhattan", "Euclidean", "Symptom Frequency", "Severity Weighted", "Risk-Aware (NEW)"]
+            ["Manhattan", "Euclidean", "Symptom Frequency", "Severity Weighted"]
         )
         
         if selected_symptoms:
