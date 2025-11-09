@@ -200,7 +200,7 @@ class AStarSymptomChecker:
         
         return len(unmatched_symptoms) / weight
     
-    def heuristic_risk_aware(self, current_symptoms: Set[str], target_disease: str, patient_condition: Dict) -> float:
+    def heuristic_risk_aware(self, current_symptoms: Set[str], target_disease: str, patient_condition: Dict = None) -> float:
         """Risk-aware heuristic considering patient safety"""
         # Base heuristic from severity
         base_score = self.heuristic_severity_weighted(current_symptoms, target_disease)
