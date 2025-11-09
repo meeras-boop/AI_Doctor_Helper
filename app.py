@@ -201,18 +201,15 @@ class AStarSymptomChecker:
         return len(unmatched_symptoms) / weight
     
     def heuristic_risk_aware(self, current_symptoms: Set[str], target_disease: str, patient_condition: Dict) -> float:
-        """NEW: Risk-aware heuristic considering patient safety"""
-        if target_disease not in self.diseases_db:
-            return float('inf')
-        
+        """Risk-aware heuristic considering patient safety"""
         # Base heuristic from severity
         base_score = self.heuristic_severity_weighted(current_symptoms, target_disease)
         
-        # Risk adjustment
+        # Risk adjustment based on treatment complexity
         treatment_plan = self.diseases_db[target_disease].get('treatment_steps', [])
         risk_cost = self.risk_assessor.calculate_treatment_risk(treatment_plan, patient_condition)
         
-        # Hazard detection
+        # Hazard detection penalty
         is_hazardous, hazards = self.hazard_detector.detect_hazards(patient_condition, target_disease)
         if is_hazardous:
             risk_cost *= 10  # Heavy penalty for hazards
