@@ -10,9 +10,6 @@ import math
 import json
 import sqlite3
 from contextlib import contextmanager
-import smtplib
-from email.mime.text import MIMEText
-import requests
 
 # Configure Streamlit for production
 st.set_page_config(
@@ -114,30 +111,30 @@ class RealMedicalDatabase:
     def __init__(self):
         self.symptoms_diseases = {
             # Respiratory System
-            'cough': ['Common Cold', 'COVID-19', 'Influenza', 'Pneumonia', 'Bronchitis', 'Asthma', 'Tuberculosis'],
+            'cough': ['Common Cold', 'COVID-19', 'Influenza', 'Pneumonia', 'Bronchitis', 'Asthma'],
             'fever': ['Common Cold', 'COVID-19', 'Influenza', 'Pneumonia', 'Urinary Tract Infection', 'Dengue'],
             'shortness_of_breath': ['COVID-19', 'Pneumonia', 'Asthma', 'Heart Failure', 'COPD', 'Anxiety'],
-            'chest_pain': ['Heart Attack', 'Angina', 'Pneumonia', 'GERD', 'Anxiety Attack', 'Pulmonary Embolism'],
+            'chest_pain': ['Heart Attack', 'Angina', 'Pneumonia', 'GERD', 'Anxiety Attack'],
             'sore_throat': ['Common Cold', 'COVID-19', 'Influenza', 'Strep Throat', 'Tonsillitis'],
             
             # Digestive System
             'nausea': ['Food Poisoning', 'Gastroenteritis', 'Migraine', 'Pregnancy', 'Appendicitis'],
-            'vomiting': ['Food Poisoning', 'Gastroenteritis', 'Migraine', 'Appendicitis', 'Concussion'],
-            'abdominal_pain': ['Appendicitis', 'Food Poisoning', 'Irritable Bowel', 'Kidney Stones', 'Gallstones'],
-            'diarrhea': ['Food Poisoning', 'Gastroenteritis', 'Irritable Bowel', 'Inflammatory Bowel Disease'],
+            'vomiting': ['Food Poisoning', 'Gastroenteritis', 'Migraine', 'Appendicitis'],
+            'abdominal_pain': ['Appendicitis', 'Food Poisoning', 'Irritable Bowel', 'Kidney Stones'],
+            'diarrhea': ['Food Poisoning', 'Gastroenteritis', 'Irritable Bowel'],
             
             # Neurological
             'headache': ['Migraine', 'Tension Headache', 'Sinusitis', 'Dehydration', 'Hypertension'],
-            'dizziness': ['Vertigo', 'Anemia', 'Low Blood Pressure', 'Dehydration', 'Inner Ear Problem'],
-            'fatigue': ['Anemia', 'Depression', 'Hypothyroidism', 'Chronic Fatigue', 'Sleep Apnea'],
+            'dizziness': ['Vertigo', 'Anemia', 'Low Blood Pressure', 'Dehydration'],
+            'fatigue': ['Anemia', 'Depression', 'Hypothyroidism', 'Chronic Fatigue'],
             
             # Cardiovascular
-            'palpitations': ['Anxiety', 'Arrhythmia', 'Anemia', 'Hyperthyroidism', 'Heart Disease'],
-            'swollen_ankles': ['Heart Failure', 'Kidney Disease', 'Liver Disease', 'Venous Insufficiency'],
+            'palpitations': ['Anxiety', 'Arrhythmia', 'Anemia', 'Hyperthyroidism'],
+            'swollen_ankles': ['Heart Failure', 'Kidney Disease', 'Liver Disease'],
             
             # General
-            'muscle_pain': ['Influenza', 'COVID-19', 'Fibromyalgia', 'Arthritis', 'Exercise Injury'],
-            'rash': ['Allergic Reaction', 'Eczema', 'Psoriasis', 'Measles', 'Chickenpox']
+            'muscle_pain': ['Influenza', 'COVID-19', 'Fibromyalgia', 'Arthritis'],
+            'rash': ['Allergic Reaction', 'Eczema', 'Psoriasis', 'Measles']
         }
         
         self.disease_details = {
@@ -192,11 +189,11 @@ class RealMedicalDatabase:
         }
         
         self.drug_interactions = {
-            'warfarin': ['aspirin', 'ibuprofen', 'naproxen', 'some_antibiotics'],
+            'warfarin': ['aspirin', 'ibuprofen', 'naproxen'],
             'aspirin': ['warfarin', 'ibuprofen', 'alcohol'],
             'ibuprofen': ['warfarin', 'aspirin', 'lithium'],
-            'metformin': ['contrast_dye', 'alcohol'],
-            'statins': ['grapefruit_juice', 'some_antibiotics']
+            'metformin': ['alcohol'],
+            'statins': ['grapefruit_juice']
         }
         
         self.risk_factors = {
@@ -385,7 +382,7 @@ class MedicalAIAnalyzer:
         if vital_signs.get('heart_rate', 0) > 150 or vital_signs.get('heart_rate', 0) < 40:
             emergency_indicators.append("Abnormal heart rate")
         
-        if vital_signs.get('temperature', 37) > 39.5:  > 39.5°C
+        if vital_signs.get('temperature', 37) > 39.5:  # High fever > 39.5°C
             emergency_indicators.append("High fever")
         
         if vital_signs.get('oxygen_saturation', 98) < 92:
@@ -535,6 +532,60 @@ class TreatmentPlanner:
         
         return warnings.get(diagnosis, ["Seek immediate help if symptoms worsen dramatically"])
 
+class AStarSymptomChecker:
+    """Advanced A* algorithm for optimal symptom-disease matching"""
+    
+    def __init__(self, medical_db):
+        self.medical_db = medical_db
+    
+    def heuristic_symptom_match(self, current_symptoms: Set[str], target_disease: str) -> float:
+        """A* heuristic based on symptom matching"""
+        if target_disease not in self.medical_db.disease_details:
+            return float('inf')
+        
+        target_symptoms = set(self.medical_db.disease_details[target_disease]['symptoms'])
+        unmatched_symptoms = target_symptoms - current_symptoms
+        
+        severity_weights = {'critical': 0.1, 'high': 0.3, 'moderate': 0.6, 'low': 1.0}
+        severity = self.medical_db.disease_details[target_disease].get('severity', 'moderate')
+        weight = severity_weights.get(severity, 0.5)
+        
+        return len(unmatched_symptoms) * weight
+    
+    def a_star_diagnosis(self, symptoms: List[str]) -> List[Tuple]:
+        """A* search for most probable diagnoses"""
+        current_symptoms_set = set(symptoms)
+        possible_diseases = set()
+        
+        # Get possible diseases from symptoms
+        for symptom in symptoms:
+            possible_diseases.update(self.medical_db.symptoms_diseases.get(symptom, []))
+        
+        # Priority queue for A* search
+        priority_queue = []
+        
+        for disease in possible_diseases:
+            # g(n) = number of patient symptoms not in disease symptoms
+            target_symptoms = set(self.medical_db.disease_details.get(disease, {}).get('symptoms', []))
+            g_score = len(current_symptoms_set - target_symptoms)
+            
+            # h(n) = heuristic estimate
+            h_score = self.heuristic_symptom_match(current_symptoms_set, disease)
+            
+            # f(n) = g(n) + h(n)
+            f_score = g_score + h_score
+            
+            heapq.heappush(priority_queue, (f_score, disease, g_score, h_score))
+        
+        # Return sorted results
+        results = []
+        while priority_queue:
+            f_score, disease, g_score, h_score = heapq.heappop(priority_queue)
+            confidence = max(0, 100 - f_score * 10)  # Convert to percentage
+            results.append((disease, confidence, g_score, h_score, f_score))
+        
+        return results
+
 def main():
     st.title("🏥 AI Doctor Assistant - Real Medical Advisor")
     st.markdown("""
@@ -544,9 +595,11 @@ def main():
     """)
     
     # Initialize systems
+    medical_db = RealMedicalDatabase()
     medical_ai = MedicalAIAnalyzer()
     treatment_planner = TreatmentPlanner()
     patient_manager = PatientManager()
+    astar_checker = AStarSymptomChecker(medical_db)
     
     # Session state for patient data
     if 'current_patient' not in st.session_state:
@@ -572,6 +625,15 @@ def main():
                     'name': name, 'age': age, 'gender': gender, 'blood_type': blood_type
                 }
                 st.success(f"Patient Registered! ID: {patient_id}")
+        
+        # Display current patient info
+        if st.session_state.current_patient:
+            st.divider()
+            st.subheader("Current Patient")
+            st.write(f"**Name:** {st.session_state.patient_data['name']}")
+            st.write(f"**Age:** {st.session_state.patient_data['age']}")
+            st.write(f"**Gender:** {st.session_state.patient_data['gender']}")
+            st.write(f"**Blood Type:** {st.session_state.patient_data['blood_type']}")
     
     # Main application tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -593,7 +655,7 @@ def main():
             with col1:
                 # Symptom selection
                 st.subheader("Select Your Symptoms")
-                all_symptoms = list(medical_ai.database.symptoms_diseases.keys())
+                all_symptoms = list(medical_db.symptoms_diseases.keys())
                 selected_symptoms = st.multiselect(
                     "Choose all that apply:",
                     all_symptoms,
@@ -641,8 +703,9 @@ def main():
                                 'symptom_severity': symptom_severity
                             }
                             
-                            # Get AI analysis
+                            # Get AI analysis using both methods
                             results = medical_ai.analyze_symptoms(selected_symptoms, patient_info)
+                            astar_results = astar_checker.a_star_diagnosis(selected_symptoms)
                             
                             if results:
                                 # Record analysis
@@ -655,6 +718,8 @@ def main():
                                 )
                                 
                                 # Display results
+                                st.subheader("🔬 AI Diagnosis Results")
+                                
                                 for i, result in enumerate(results):
                                     with st.expander(f"🎯 {result['disease']} ({result['confidence']:.1f}% confidence)", expanded=i==0):
                                         st.write(f"**Severity:** {result['severity'].upper()}")
@@ -670,6 +735,12 @@ def main():
                                             st.warning("⚠️ URGENT: Consult doctor within 24 hours")
                                         else:
                                             st.success("✅ Non-urgent: Follow recommendations and monitor")
+                                
+                                # Show A* algorithm results
+                                st.subheader("🤖 A* Algorithm Analysis")
+                                for disease, confidence, g_score, h_score, f_score in astar_results[:3]:
+                                    st.write(f"**{disease}**: {confidence:.1f}% (g={g_score}, h={h_score:.2f}, f={f_score:.2f})")
+                                
                             else:
                                 st.warning("No clear diagnosis found. Please consult a healthcare provider.")
                 else:
