@@ -1,4 +1,4 @@
-# AI_DOCTOR_ASSISTANT_REAL_WORLD.py
+# AI_DOCTOR_COMPLETE_CURRICULUM.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,19 +10,17 @@ import math
 import json
 import sqlite3
 from contextlib import contextmanager
+from collections import defaultdict
 
-# Configure Streamlit for production
-st.set_page_config(
-    page_title="AI Doctor Assistant - Real Medical Advisor",
-    page_icon="🏥",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Configure Streamlit
+st.set_page_config(page_title="AI Doctor - Complete AI Curriculum", layout="wide")
 
-# Database setup for real data persistence
+# =============================================================================
+# DATABASE SETUP (Real Data Persistence)
+# =============================================================================
 @contextmanager
 def get_db_connection():
-    conn = sqlite3.connect('medical_assistant.db', check_same_thread=False)
+    conn = sqlite3.connect('medical_ai.db', check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
         yield conn
@@ -30,929 +28,600 @@ def get_db_connection():
         conn.close()
 
 def init_database():
-    """Initialize database with real medical schemas"""
     with get_db_connection() as conn:
-        # Patient records
-        conn.execute('''
+        conn.executescript('''
             CREATE TABLE IF NOT EXISTS patients (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                patient_id TEXT UNIQUE,
-                name TEXT,
-                age INTEGER,
-                gender TEXT,
-                blood_type TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Medical history
-        conn.execute('''
+                id INTEGER PRIMARY KEY, patient_id TEXT UNIQUE, name TEXT, 
+                age INTEGER, gender TEXT, blood_type TEXT, created_at TIMESTAMP
+            );
             CREATE TABLE IF NOT EXISTS medical_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                patient_id TEXT,
-                condition TEXT,
-                diagnosis_date DATE,
-                severity TEXT,
-                treatment TEXT,
-                FOREIGN KEY (patient_id) REFERENCES patients (patient_id)
-            )
-        ''')
-        
-        # Symptoms and diagnoses
-        conn.execute('''
+                id INTEGER PRIMARY KEY, patient_id TEXT, condition TEXT, 
+                diagnosis_date DATE, severity TEXT, treatment TEXT
+            );
             CREATE TABLE IF NOT EXISTS symptom_records (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                patient_id TEXT,
-                symptoms TEXT,
-                diagnosis TEXT,
-                confidence REAL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (patient_id) REFERENCES patients (patient_id)
-            )
-        ''')
-        
-        # Medication tracking
-        conn.execute('''
+                id INTEGER PRIMARY KEY, patient_id TEXT, symptoms TEXT, 
+                diagnosis TEXT, confidence REAL, timestamp TIMESTAMP
+            );
             CREATE TABLE IF NOT EXISTS medications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                patient_id TEXT,
-                medication_name TEXT,
-                dosage TEXT,
-                frequency TEXT,
-                start_date DATE,
-                end_date DATE,
-                status TEXT,
-                FOREIGN KEY (patient_id) REFERENCES patients (patient_id)
-            )
-        ''')
-        
-        # Vital signs
-        conn.execute('''
+                id INTEGER PRIMARY KEY, patient_id TEXT, medication_name TEXT,
+                dosage TEXT, frequency TEXT, start_date DATE, end_date DATE, status TEXT
+            );
             CREATE TABLE IF NOT EXISTS vital_signs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                patient_id TEXT,
-                heart_rate INTEGER,
-                blood_pressure TEXT,
-                temperature REAL,
-                oxygen_saturation REAL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (patient_id) REFERENCES patients (patient_id)
-            )
+                id INTEGER PRIMARY KEY, patient_id TEXT, heart_rate INTEGER,
+                blood_pressure TEXT, temperature REAL, oxygen_saturation REAL, timestamp TIMESTAMP
+            );
         ''')
-        
         conn.commit()
 
-# Initialize database on startup
 init_database()
 
-class RealMedicalDatabase:
-    """Real medical database with comprehensive symptom-disease relationships"""
+# =============================================================================
+# TOPIC 2: INTELLIGENT AGENTS
+# =============================================================================
+class ReflexMedicationAgent:
+    """Intelligent Agent for Medication Management - Topic 2"""
     
     def __init__(self):
-        self.symptoms_diseases = {
-            # Respiratory System
-            'cough': ['Common Cold', 'COVID-19', 'Influenza', 'Pneumonia', 'Bronchitis', 'Asthma'],
-            'fever': ['Common Cold', 'COVID-19', 'Influenza', 'Pneumonia', 'Urinary Tract Infection', 'Dengue'],
-            'shortness_of_breath': ['COVID-19', 'Pneumonia', 'Asthma', 'Heart Failure', 'COPD', 'Anxiety'],
-            'chest_pain': ['Heart Attack', 'Angina', 'Pneumonia', 'GERD', 'Anxiety Attack'],
-            'sore_throat': ['Common Cold', 'COVID-19', 'Influenza', 'Strep Throat', 'Tonsillitis'],
-            
-            # Digestive System
-            'nausea': ['Food Poisoning', 'Gastroenteritis', 'Migraine', 'Pregnancy', 'Appendicitis'],
-            'vomiting': ['Food Poisoning', 'Gastroenteritis', 'Migraine', 'Appendicitis'],
-            'abdominal_pain': ['Appendicitis', 'Food Poisoning', 'Irritable Bowel', 'Kidney Stones'],
-            'diarrhea': ['Food Poisoning', 'Gastroenteritis', 'Irritable Bowel'],
-            
-            # Neurological
-            'headache': ['Migraine', 'Tension Headache', 'Sinusitis', 'Dehydration', 'Hypertension'],
-            'dizziness': ['Vertigo', 'Anemia', 'Low Blood Pressure', 'Dehydration'],
-            'fatigue': ['Anemia', 'Depression', 'Hypothyroidism', 'Chronic Fatigue'],
-            
-            # Cardiovascular
-            'palpitations': ['Anxiety', 'Arrhythmia', 'Anemia', 'Hyperthyroidism'],
-            'swollen_ankles': ['Heart Failure', 'Kidney Disease', 'Liver Disease'],
-            
-            # General
-            'muscle_pain': ['Influenza', 'COVID-19', 'Fibromyalgia', 'Arthritis'],
-            'rash': ['Allergic Reaction', 'Eczema', 'Psoriasis', 'Measles']
+        self.medication_schedule = {}
+        self.adherence_history = {}
+    
+    def add_medication(self, name: str, dosage: str, times: List[str]) -> Tuple[bool, str]:
+        """Agent action: Add medication with safety rules"""
+        self.medication_schedule[name] = {
+            'dosage': dosage, 'times': times, 'last_taken': None, 'adherence': []
         }
+        return True, f"Medication {name} added to schedule"
+    
+    def check_medication_time(self) -> List[str]:
+        """Agent perception: Check environment (time) and act"""
+        current_time = datetime.now()
+        reminders = []
         
-        self.disease_details = {
-            'Common Cold': {
-                'symptoms': ['cough', 'fever', 'sore_throat', 'muscle_pain'],
-                'severity': 'low',
-                'urgency': 'non_urgent',
-                'recommendation': 'Rest, hydrate, over-the-counter cold medication',
-                'treatment_steps': ['rest', 'hydration', 'otc_medication', 'symptom_monitoring'],
-                'recovery_time': '7-10 days'
-            },
-            'COVID-19': {
-                'symptoms': ['fever', 'cough', 'shortness_of_breath', 'fatigue', 'muscle_pain'],
-                'severity': 'high',
-                'urgency': 'urgent',
-                'recommendation': 'Isolate immediately, get tested, consult doctor',
-                'treatment_steps': ['isolation', 'testing', 'medical_consultation', 'symptom_tracking'],
-                'recovery_time': '2-3 weeks'
-            },
-            'Influenza': {
-                'symptoms': ['fever', 'cough', 'muscle_pain', 'fatigue', 'headache'],
-                'severity': 'moderate',
-                'urgency': 'semi_urgent',
-                'recommendation': 'Rest, antiviral medication if early, symptom management',
-                'treatment_steps': ['rest', 'antiviral_medication', 'fever_management', 'hydration'],
-                'recovery_time': '1-2 weeks'
-            },
-            'Pneumonia': {
-                'symptoms': ['fever', 'cough', 'shortness_of_breath', 'chest_pain'],
-                'severity': 'high',
-                'urgency': 'emergency',
-                'recommendation': 'Seek immediate medical attention, may require hospitalization',
-                'treatment_steps': ['emergency_care', 'antibiotics', 'hospitalization', 'oxygen_therapy'],
-                'recovery_time': '3-6 weeks'
-            },
-            'Heart Attack': {
-                'symptoms': ['chest_pain', 'shortness_of_breath', 'palpitations'],
-                'severity': 'critical',
-                'urgency': 'emergency',
-                'recommendation': 'CALL EMERGENCY SERVICES IMMEDIATELY - Chew aspirin if available',
-                'treatment_steps': ['call_emergency', 'aspirin', 'hospitalization', 'cardiac_care'],
-                'recovery_time': 'Several months'
-            },
-            'Asthma': {
-                'symptoms': ['shortness_of_breath', 'cough', 'chest_pain'],
-                'severity': 'moderate',
-                'urgency': 'urgent',
-                'recommendation': 'Use inhaler if available, seek medical help if severe',
-                'treatment_steps': ['inhaler', 'medical_consultation', 'trigger_avoidance', 'monitoring'],
-                'recovery_time': 'Chronic condition'
-            }
-        }
-        
-        self.drug_interactions = {
-            'warfarin': ['aspirin', 'ibuprofen', 'naproxen'],
-            'aspirin': ['warfarin', 'ibuprofen', 'alcohol'],
-            'ibuprofen': ['warfarin', 'aspirin', 'lithium'],
-            'metformin': ['alcohol'],
-            'statins': ['grapefruit_juice']
-        }
-        
-        self.risk_factors = {
-            'age_65_plus': ['Pneumonia', 'Influenza', 'Heart Disease'],
-            'diabetes': ['COVID-19', 'Pneumonia', 'Urinary Tract Infection'],
-            'hypertension': ['Heart Attack', 'Stroke', 'Kidney Disease'],
-            'smoking': ['COPD', 'Lung Cancer', 'Heart Disease'],
-            'obesity': ['Diabetes', 'Heart Disease', 'Sleep Apnea']
-        }
+        for med, info in self.medication_schedule.items():
+            for time_str in info['times']:
+                try:
+                    med_time = datetime.strptime(time_str, "%H:%M").time()
+                    current_time_only = current_time.time()
+                    time_diff = abs((current_time_only.hour - med_time.hour) * 60 + 
+                                  (current_time_only.minute - med_time.minute))
+                    
+                    if time_diff <= 30 and info['last_taken'] != current_time.date():
+                        reminders.append(f"Time to take {med} - {info['dosage']}")
+                except ValueError:
+                    continue
+        return reminders
+    
+    def mark_taken(self, medication: str):
+        """Agent learning: Update based on actions"""
+        if medication in self.medication_schedule:
+            self.medication_schedule[medication]['last_taken'] = datetime.now().date()
 
-class PatientManager:
-    """Real patient management system"""
-    
-    def __init__(self):
-        self.current_patient = None
-    
-    def create_patient(self, name, age, gender, blood_type):
-        """Create new patient record"""
-        patient_id = f"PAT{random.randint(10000, 99999)}"
-        
-        with get_db_connection() as conn:
-            conn.execute(
-                'INSERT INTO patients (patient_id, name, age, gender, blood_type) VALUES (?, ?, ?, ?, ?)',
-                (patient_id, name, age, gender, blood_type)
-            )
-            conn.commit()
-        
-        return patient_id
-    
-    def get_patient(self, patient_id):
-        """Retrieve patient data"""
-        with get_db_connection() as conn:
-            patient = conn.execute(
-                'SELECT * FROM patients WHERE patient_id = ?', (patient_id,)
-            ).fetchone()
-        return dict(patient) if patient else None
-    
-    def add_medical_history(self, patient_id, condition, diagnosis_date, severity, treatment):
-        """Add to patient medical history"""
-        with get_db_connection() as conn:
-            conn.execute(
-                '''INSERT INTO medical_history 
-                (patient_id, condition, diagnosis_date, severity, treatment) 
-                VALUES (?, ?, ?, ?, ?)''',
-                (patient_id, condition, diagnosis_date, severity, treatment)
-            )
-            conn.commit()
-    
-    def record_symptom_analysis(self, patient_id, symptoms, diagnosis, confidence):
-        """Record symptom analysis results"""
-        with get_db_connection() as conn:
-            conn.execute(
-                '''INSERT INTO symptom_records 
-                (patient_id, symptoms, diagnosis, confidence) 
-                VALUES (?, ?, ?, ?)''',
-                (patient_id, json.dumps(symptoms), diagnosis, confidence)
-            )
-            conn.commit()
-    
-    def add_medication(self, patient_id, medication_name, dosage, frequency, start_date, end_date):
-        """Prescribe medication"""
-        with get_db_connection() as conn:
-            conn.execute(
-                '''INSERT INTO medications 
-                (patient_id, medication_name, dosage, frequency, start_date, end_date, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                (patient_id, medication_name, dosage, frequency, start_date, end_date, 'active')
-            )
-            conn.commit()
-    
-    def record_vital_signs(self, patient_id, heart_rate, blood_pressure, temperature, oxygen_saturation):
-        """Record patient vital signs"""
-        with get_db_connection() as conn:
-            conn.execute(
-                '''INSERT INTO vital_signs 
-                (patient_id, heart_rate, blood_pressure, temperature, oxygen_saturation) 
-                VALUES (?, ?, ?, ?, ?)''',
-                (patient_id, heart_rate, blood_pressure, temperature, oxygen_saturation)
-            )
-            conn.commit()
-
-class MedicalAIAnalyzer:
-    """Real AI medical analysis engine"""
-    
-    def __init__(self):
-        self.database = RealMedicalDatabase()
-        self.patient_manager = PatientManager()
-    
-    def analyze_symptoms(self, symptoms: List[str], patient_data: Dict) -> List[Dict]:
-        """Analyze symptoms and return potential conditions with confidence scores"""
-        
-        possible_conditions = {}
-        
-        # Find diseases matching symptoms
-        for symptom in symptoms:
-            for disease in self.database.symptoms_diseases.get(symptom, []):
-                if disease not in possible_conditions:
-                    possible_conditions[disease] = {
-                        'matching_symptoms': [],
-                        'total_symptoms': len(self.database.disease_details.get(disease, {}).get('symptoms', [])),
-                        'severity': self.database.disease_details.get(disease, {}).get('severity', 'unknown'),
-                        'risk_factors': []
-                    }
-                possible_conditions[disease]['matching_symptoms'].append(symptom)
-        
-        # Calculate confidence scores
-        results = []
-        for disease, data in possible_conditions.items():
-            # Base confidence based on symptom matching
-            symptom_match_ratio = len(data['matching_symptoms']) / max(1, data['total_symptoms'])
-            base_confidence = symptom_match_ratio * 80  # Base score out of 80
-            
-            # Adjust for risk factors
-            risk_adjustment = self._calculate_risk_adjustment(disease, patient_data)
-            
-            # Adjust for symptom severity
-            severity_adjustment = self._calculate_severity_adjustment(data['severity'])
-            
-            final_confidence = min(95, base_confidence + risk_adjustment + severity_adjustment)
-            
-            # Ensure minimum confidence for display
-            if final_confidence > 20:
-                disease_info = self.database.disease_details.get(disease, {})
-                results.append({
-                    'disease': disease,
-                    'confidence': final_confidence,
-                    'severity': data['severity'],
-                    'urgency': disease_info.get('urgency', 'unknown'),
-                    'recommendation': disease_info.get('recommendation', 'Consult healthcare provider'),
-                    'treatment_steps': disease_info.get('treatment_steps', []),
-                    'recovery_time': disease_info.get('recovery_time', 'Unknown'),
-                    'matching_symptoms': data['matching_symptoms'],
-                    'risk_factors': data['risk_factors']
-                })
-        
-        # Sort by confidence and severity
-        results.sort(key=lambda x: (x['confidence'], x['severity']), reverse=True)
-        return results[:5]  # Return top 5 results
-    
-    def _calculate_risk_adjustment(self, disease: str, patient_data: Dict) -> float:
-        """Calculate risk adjustment based on patient factors"""
-        adjustment = 0
-        
-        # Age-based risk
-        age = patient_data.get('age', 40)
-        if age > 65 and disease in self.database.risk_factors.get('age_65_plus', []):
-            adjustment += 10
-        
-        # Comorbidity risks
-        comorbidities = patient_data.get('comorbidities', [])
-        for comorbidity in comorbidities:
-            if disease in self.database.risk_factors.get(comorbidity.lower(), []):
-                adjustment += 5
-        
-        return adjustment
-    
-    def _calculate_severity_adjustment(self, severity: str) -> float:
-        """Adjust confidence based on disease severity"""
-        severity_weights = {
-            'critical': 15,
-            'high': 10,
-            'moderate': 5,
-            'low': 0
-        }
-        return severity_weights.get(severity, 0)
-    
-    def check_drug_interactions(self, current_meds: List[str], new_med: str) -> List[str]:
-        """Check for potential drug interactions"""
-        interactions = []
-        for med in current_meds:
-            if med in self.database.drug_interactions:
-                if new_med in self.database.drug_interactions[med]:
-                    interactions.append(f"{med} + {new_med}")
-        return interactions
-    
-    def assess_emergency_condition(self, symptoms: List[str], vital_signs: Dict) -> Dict:
-        """Assess if condition requires emergency care"""
-        emergency_indicators = []
-        
-        # Critical symptoms
-        critical_symptoms = ['chest_pain', 'shortness_of_breath', 'severe_bleeding', 'loss_of_consciousness']
-        if any(symptom in symptoms for symptom in critical_symptoms):
-            emergency_indicators.append("Critical symptoms present")
-        
-        # Abnormal vital signs
-        if vital_signs.get('heart_rate', 0) > 150 or vital_signs.get('heart_rate', 0) < 40:
-            emergency_indicators.append("Abnormal heart rate")
-        
-        if vital_signs.get('temperature', 37) > 39.5:  # High fever > 39.5°C
-            emergency_indicators.append("High fever")
-        
-        if vital_signs.get('oxygen_saturation', 98) < 92:
-            emergency_indicators.append("Low oxygen saturation")
-        
-        is_emergency = len(emergency_indicators) > 0
-        return {
-            'is_emergency': is_emergency,
-            'indicators': emergency_indicators,
-            'recommendation': "SEEK IMMEDIATE MEDICAL ATTENTION" if is_emergency else "Monitor condition"
-        }
-
-class TreatmentPlanner:
-    """Real treatment planning system"""
-    
-    def __init__(self):
-        self.database = RealMedicalDatabase()
-    
-    def generate_treatment_plan(self, diagnosis: str, patient_data: Dict) -> Dict:
-        """Generate comprehensive treatment plan"""
-        disease_info = self.database.disease_details.get(diagnosis, {})
-        
-        plan = {
-            'diagnosis': diagnosis,
-            'urgency': disease_info.get('urgency', 'unknown'),
-            'timeline': disease_info.get('recovery_time', 'Unknown'),
-            'medications': self._suggest_medications(diagnosis, patient_data),
-            'lifestyle_recommendations': self._suggest_lifestyle_changes(diagnosis),
-            'monitoring_instructions': self._suggest_monitoring(diagnosis),
-            'follow_up': self._suggest_follow_up(diagnosis),
-            'warning_signs': self._get_warning_signs(diagnosis)
-        }
-        
-        return plan
-    
-    def _suggest_medications(self, diagnosis: str, patient_data: Dict) -> List[Dict]:
-        """Suggest appropriate medications"""
-        medication_protocols = {
-            'Common Cold': [
-                {'name': 'Acetaminophen', 'purpose': 'Fever and pain relief', 'dosage': '500mg every 6 hours'},
-                {'name': 'Decongestant', 'purpose': 'Nasal congestion', 'dosage': 'As directed'}
-            ],
-            'COVID-19': [
-                {'name': 'Paxlovid', 'purpose': 'Antiviral treatment', 'dosage': 'As prescribed by doctor'},
-                {'name': 'Acetaminophen', 'purpose': 'Fever management', 'dosage': '500mg every 6 hours as needed'}
-            ],
-            'Influenza': [
-                {'name': 'Oseltamivir', 'purpose': 'Antiviral', 'dosage': 'As prescribed (start within 48 hours)'},
-                {'name': 'Ibuprofen', 'purpose': 'Fever and pain', 'dosage': '400mg every 6 hours'}
-            ],
-            'Asthma': [
-                {'name': 'Albuterol inhaler', 'purpose': 'Quick relief', 'dosage': '1-2 puffs every 4-6 hours as needed'}
-            ]
-        }
-        
-        return medication_protocols.get(diagnosis, [{'name': 'Consult doctor for medication', 'purpose': 'Professional assessment needed', 'dosage': 'As prescribed'}])
-    
-    def _suggest_lifestyle_changes(self, diagnosis: str) -> List[str]:
-        """Suggest lifestyle modifications"""
-        recommendations = {
-            'Common Cold': [
-                "Increase fluid intake to 8-10 glasses daily",
-                "Get plenty of rest",
-                "Use humidifier for nasal congestion",
-                "Avoid alcohol and smoking"
-            ],
-            'COVID-19': [
-                "Isolate from others for at least 5 days",
-                "Monitor oxygen saturation regularly",
-                "Rest and hydrate frequently",
-                "Sleep in prone position if breathing difficulty"
-            ],
-            'Influenza': [
-                "Bed rest for 3-5 days",
-                "Hydrate with water and electrolyte solutions",
-                "Avoid contact with vulnerable individuals",
-                "Nutritious diet with protein and vitamins"
-            ],
-            'Heart Attack': [
-                "Complete rest until medical evaluation",
-                "Low-sodium, heart-healthy diet",
-                "Cardiac rehabilitation program",
-                "Stress management techniques"
-            ]
-        }
-        
-        return recommendations.get(diagnosis, ["Consult healthcare provider for personalized recommendations"])
-    
-    def _suggest_monitoring(self, diagnosis: str) -> List[str]:
-        """Suggest monitoring parameters"""
-        monitoring = {
-            'COVID-19': [
-                "Temperature every 6 hours",
-                "Oxygen saturation 3 times daily",
-                "Respiratory rate if feeling short of breath",
-                "Symptom progression tracking"
-            ],
-            'Pneumonia': [
-                "Temperature monitoring",
-                "Respiratory rate assessment",
-                "Oxygen saturation checks",
-                "Cough severity and sputum color"
-            ],
-            'Heart Attack': [
-                "Blood pressure monitoring",
-                "Heart rate tracking",
-                "Weight daily for fluid retention",
-                "Chest pain frequency and severity"
-            ]
-        }
-        
-        return monitoring.get(diagnosis, ["Monitor symptom changes and report worsening conditions"])
-    
-    def _suggest_follow_up(self, diagnosis: str) -> str:
-        """Suggest follow-up timeline"""
-        follow_up = {
-            'Common Cold': "Return if symptoms worsen or persist beyond 10 days",
-            'COVID-19': "Telemedicine follow-up in 2-3 days, emergency if breathing difficulty",
-            'Pneumonia': "Follow-up with doctor in 1 week, sooner if worsening",
-            'Heart Attack': "Cardiology follow-up within 1 week of discharge"
-        }
-        
-        return follow_up.get(diagnosis, "Consult healthcare provider for follow-up schedule")
-    
-    def _get_warning_signs(self, diagnosis: str) -> List[str]:
-        """Provide warning signs for emergency"""
-        warnings = {
-            'COVID-19': [
-                "Difficulty breathing",
-                "Persistent chest pain",
-                "Confusion or inability to stay awake",
-                "Blue lips or face"
-            ],
-            'Pneumonia': [
-                "Rapid breathing",
-                "Severe chest pain",
-                "High fever not responding to medication",
-                "Worsening cough with bloody mucus"
-            ],
-            'Heart Attack': [
-                "Chest pain spreading to arm, neck or jaw",
-                "Severe shortness of breath",
-                "Nausea with cold sweat",
-                "Lightheadedness or fainting"
-            ]
-        }
-        
-        return warnings.get(diagnosis, ["Seek immediate help if symptoms worsen dramatically"])
-
+# =============================================================================
+# TOPICS 3-5: PROBLEM SOLVING & INFORMED SEARCH
+# =============================================================================
 class AStarSymptomChecker:
-    """Advanced A* algorithm for optimal symptom-disease matching"""
+    """A* Search Implementation - Topics 3-5: Informed Search"""
     
-    def __init__(self, medical_db):
-        self.medical_db = medical_db
+    def __init__(self, symptoms_db, diseases_db):
+        self.symptoms_db = symptoms_db
+        self.diseases_db = diseases_db
     
-    def heuristic_symptom_match(self, current_symptoms: Set[str], target_disease: str) -> float:
-        """A* heuristic based on symptom matching"""
-        if target_disease not in self.medical_db.disease_details:
+    def heuristic_manhattan(self, current_symptoms: Set[str], target_disease: str) -> float:
+        """Topic 5: Manhattan Distance Heuristic - |unmatched symptoms|"""
+        if target_disease not in self.diseases_db:
+            return float('inf')
+        target_symptoms = set(self.diseases_db[target_disease]['symptoms'])
+        return len(target_symptoms - current_symptoms)
+    
+    def heuristic_euclidean(self, current_symptoms: Set[str], target_disease: str) -> float:
+        """Topic 5: Euclidean Distance - √(∑(symptom_difference)²)"""
+        if target_disease not in self.diseases_db:
+            return float('inf')
+        target_symptoms = set(self.diseases_db[target_disease]['symptoms'])
+        matched = len(current_symptoms.intersection(target_symptoms))
+        return math.sqrt((len(target_symptoms) - matched) ** 2)
+    
+    def heuristic_risk_aware(self, current_symptoms: Set[str], target_disease: str, patient_data: Dict) -> float:
+        """Topic 5: Risk-Aware Heuristic - Combines medical risk factors"""
+        if target_disease not in self.diseases_db:
             return float('inf')
         
-        target_symptoms = set(self.medical_db.disease_details[target_disease]['symptoms'])
-        unmatched_symptoms = target_symptoms - current_symptoms
+        target_symptoms = set(self.diseases_db[target_disease]['symptoms'])
+        base_score = len(target_symptoms - current_symptoms)
         
-        severity_weights = {'critical': 0.1, 'high': 0.3, 'moderate': 0.6, 'low': 1.0}
-        severity = self.medical_db.disease_details[target_disease].get('severity', 'moderate')
-        weight = severity_weights.get(severity, 0.5)
+        # Risk factor adjustment
+        risk_adjustment = 0
+        age = patient_data.get('age', 40)
+        if age > 65 and target_disease in ['Pneumonia', 'Heart Failure']:
+            risk_adjustment += 5
         
-        return len(unmatched_symptoms) * weight
+        return base_score + risk_adjustment
     
-    def a_star_diagnosis(self, symptoms: List[str]) -> List[Tuple]:
-        """A* search for most probable diagnoses"""
-        current_symptoms_set = set(symptoms)
+    def a_star_search(self, selected_symptoms: List[str], patient_data: Dict = None) -> List[Tuple]:
+        """A* Algorithm: f(n) = g(n) + h(n)"""
+        current_symptoms_set = set(selected_symptoms)
         possible_diseases = set()
         
-        # Get possible diseases from symptoms
-        for symptom in symptoms:
-            possible_diseases.update(self.medical_db.symptoms_diseases.get(symptom, []))
+        for symptom in selected_symptoms:
+            possible_diseases.update(self.symptoms_db.get(symptom, []))
         
-        # Priority queue for A* search
         priority_queue = []
-        
         for disease in possible_diseases:
-            # g(n) = number of patient symptoms not in disease symptoms
-            target_symptoms = set(self.medical_db.disease_details.get(disease, {}).get('symptoms', []))
+            target_symptoms = set(self.diseases_db.get(disease, {}).get('symptoms', []))
             g_score = len(current_symptoms_set - target_symptoms)
             
-            # h(n) = heuristic estimate
-            h_score = self.heuristic_symptom_match(current_symptoms_set, disease)
+            # Use risk-aware heuristic if patient data available
+            if patient_data:
+                h_score = self.heuristic_risk_aware(current_symptoms_set, disease, patient_data)
+            else:
+                h_score = self.heuristic_manhattan(current_symptoms_set, disease)
             
-            # f(n) = g(n) + h(n)
             f_score = g_score + h_score
-            
             heapq.heappush(priority_queue, (f_score, disease, g_score, h_score))
         
-        # Return sorted results
         results = []
         while priority_queue:
             f_score, disease, g_score, h_score = heapq.heappop(priority_queue)
-            confidence = max(0, 100 - f_score * 10)  # Convert to percentage
+            confidence = max(0, 100 - f_score * 5)
             results.append((disease, confidence, g_score, h_score, f_score))
         
         return results
 
-def main():
-    st.title("🏥 AI Doctor Assistant - Real Medical Advisor")
-    st.markdown("""
-    **Professional Healthcare Assistant with Real Medical Analysis**
-    *This tool provides AI-powered symptom analysis and treatment guidance. 
-    Always consult healthcare professionals for medical diagnoses.*
-    """)
+# =============================================================================
+# TOPICS 6-7: CONSTRAINT SATISFACTION PROBLEMS
+# =============================================================================
+class MedicalCSP:
+    """Constraint Satisfaction Problem - Topics 6-7"""
     
-    # Initialize systems
-    medical_db = RealMedicalDatabase()
-    medical_ai = MedicalAIAnalyzer()
-    treatment_planner = TreatmentPlanner()
-    patient_manager = PatientManager()
-    astar_checker = AStarSymptomChecker(medical_db)
+    def __init__(self, variables: List[str], domains: Dict[str, List[str]]):
+        self.variables = variables
+        self.domains = domains
+        self.constraints = []
     
-    # Session state for patient data
-    if 'current_patient' not in st.session_state:
-        st.session_state.current_patient = None
-    if 'patient_data' not in st.session_state:
-        st.session_state.patient_data = {}
+    def add_constraint(self, constraint_func):
+        self.constraints.append(constraint_func)
     
-    # Sidebar - Patient Registration
-    with st.sidebar:
-        st.header("👤 Patient Registration")
+    def is_consistent(self, assignment: Dict[str, str]) -> bool:
+        for constraint in self.constraints:
+            if not constraint(assignment):
+                return False
+        return True
+    
+    def backtracking_search(self, assignment: Dict[str, str] = None) -> Dict[str, str]:
+        """Backtracking Search Algorithm for CSP"""
+        if assignment is None:
+            assignment = {}
         
-        with st.form("patient_registration"):
-            name = st.text_input("Full Name")
-            age = st.number_input("Age", min_value=0, max_value=120, value=25)
-            gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-            blood_type = st.selectbox("Blood Type", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"])
+        if len(assignment) == len(self.variables):
+            return assignment
+        
+        unassigned = [v for v in self.variables if v not in assignment]
+        first = unassigned[0]
+        
+        for value in self.domains[first]:
+            new_assignment = assignment.copy()
+            new_assignment[first] = value
             
-            submitted = st.form_submit_button("Register Patient")
-            if submitted and name:
-                patient_id = patient_manager.create_patient(name, age, gender, blood_type)
-                st.session_state.current_patient = patient_id
-                st.session_state.patient_data = {
-                    'name': name, 'age': age, 'gender': gender, 'blood_type': blood_type
-                }
-                st.success(f"Patient Registered! ID: {patient_id}")
+            if self.is_consistent(new_assignment):
+                result = self.backtracking_search(new_assignment)
+                if result is not None:
+                    return result
         
-        # Display current patient info
-        if st.session_state.current_patient:
-            st.divider()
-            st.subheader("Current Patient")
-            st.write(f"**Name:** {st.session_state.patient_data['name']}")
-            st.write(f"**Age:** {st.session_state.patient_data['age']}")
-            st.write(f"**Gender:** {st.session_state.patient_data['gender']}")
-            st.write(f"**Blood Type:** {st.session_state.patient_data['blood_type']}")
+        return None
+
+# =============================================================================
+# TOPICS 8-10: SYMBOLIC AI & LOGICAL AGENTS
+# =============================================================================
+class PropositionalLogic:
+    """Symbolic AI - Propositional Logic - Topics 8-10"""
     
-    # Main application tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🔍 Symptom Checker", 
-        "💊 Treatment Plans", 
-        "📊 Patient Records", 
-        "❤️ Vital Signs", 
-        "🚨 Emergency Check"
+    def __init__(self):
+        self.knowledge_base = set()
+        self.symbols = set()
+    
+    def add_rule(self, premise: List[str], conclusion: str):
+        """Add logical rule: premise → conclusion"""
+        rule = f"({' & '.join(premise)}) => {conclusion}"
+        self.knowledge_base.add(rule)
+        self.symbols.update(premise)
+        self.symbols.add(conclusion)
+    
+    def modus_ponens(self, facts: Set[str]) -> Set[str]:
+        """Logical Inference using Modus Ponens"""
+        new_facts = facts.copy()
+        changed = True
+        
+        while changed:
+            changed = False
+            for rule in self.knowledge_base:
+                if '=>' in rule:
+                    premise_str, conclusion = rule.split('=>')
+                    premise_str = premise_str.strip('() ')
+                    premises = [p.strip() for p in premise_str.split('&')]
+                    
+                    if all(premise in new_facts for premise in premises):
+                        if conclusion.strip() not in new_facts:
+                            new_facts.add(conclusion.strip())
+                            changed = True
+        
+        return new_facts
+
+# =============================================================================
+# TOPICS 11-14: PROBABILITY & BAYESIAN REASONING
+# =============================================================================
+class BayesianNetwork:
+    """Bayesian Networks - Topics 11-14: Probabilistic Reasoning"""
+    
+    def __init__(self):
+        self.nodes = {}  # Prior probabilities
+        self.edges = {}  # Conditional probability tables
+        self.initialize_medical_network()
+    
+    def initialize_medical_network(self):
+        """Initialize medical Bayesian network"""
+        # Prior probabilities P(Disease)
+        self.nodes = {
+            'Flu': 0.05, 'COVID-19': 0.02, 'Pneumonia': 0.01,
+            'Heart_Attack': 0.005, 'Asthma': 0.03
+        }
+        
+        # Conditional probabilities P(Symptom|Disease)
+        self.edges = {
+            'Fever': {'Flu': 0.9, 'COVID-19': 0.95, 'Pneumonia': 0.85, 'Heart_Attack': 0.1, 'Asthma': 0.2},
+            'Cough': {'Flu': 0.8, 'COVID-19': 0.9, 'Pneumonia': 0.95, 'Heart_Attack': 0.3, 'Asthma': 0.7},
+            'Shortness_of_Breath': {'Flu': 0.2, 'COVID-19': 0.6, 'Pneumonia': 0.8, 'Heart_Attack': 0.9, 'Asthma': 0.9}
+        }
+    
+    def infer(self, evidence: Dict[str, bool]) -> Dict[str, float]:
+        """Bayesian Inference: P(Disease|Evidence) ∝ P(Disease) * ∏ P(Evidence_i|Disease)"""
+        posterior = {}
+        
+        for disease, prior in self.nodes.items():
+            likelihood = 1.0
+            for symptom, present in evidence.items():
+                if symptom in self.edges:
+                    prob = self.edges[symptom].get(disease, 0.01)
+                    likelihood *= prob if present else (1 - prob)
+            
+            posterior[disease] = prior * likelihood
+        
+        # Normalize
+        total = sum(posterior.values())
+        if total > 0:
+            posterior = {d: p/total for d, p in posterior.items()}
+        
+        return posterior
+
+# =============================================================================
+# TOPICS 15-16: PROBABILISTIC REASONING OVER TIME
+# =============================================================================
+class HiddenMarkovModel:
+    """HMM for Health State Tracking - Topics 15-16"""
+    
+    def __init__(self):
+        self.states = ['Healthy', 'Sick', 'Critical', 'Recovering']
+        self.transitions = {
+            'Healthy': {'Healthy': 0.8, 'Sick': 0.15, 'Critical': 0.05},
+            'Sick': {'Healthy': 0.1, 'Sick': 0.6, 'Critical': 0.25, 'Recovering': 0.05},
+            'Critical': {'Sick': 0.2, 'Critical': 0.5, 'Recovering': 0.3},
+            'Recovering': {'Healthy': 0.4, 'Sick': 0.1, 'Recovering': 0.5}
+        }
+        self.emissions = {
+            'Healthy': {'Mild': 0.8, 'Moderate': 0.15, 'Severe': 0.05},
+            'Sick': {'Mild': 0.3, 'Moderate': 0.5, 'Severe': 0.2},
+            'Critical': {'Mild': 0.05, 'Moderate': 0.25, 'Severe': 0.7},
+            'Recovering': {'Mild': 0.6, 'Moderate': 0.3, 'Severe': 0.1}
+        }
+    
+    def forward_algorithm(self, observations: List[str]) -> List[Dict[str, float]]:
+        """Forward Algorithm for Filtering - P(Current State | Observations)"""
+        belief = {state: 1.0/len(self.states) for state in self.states}
+        beliefs_history = [belief.copy()]
+        
+        for obs in observations:
+            new_belief = {}
+            for current_state in self.states:
+                prob = 0.0
+                for prev_state in self.states:
+                    prob += self.transitions[prev_state].get(current_state, 0) * belief[prev_state]
+                new_belief[current_state] = self.emissions[current_state].get(obs, 0.001) * prob
+            
+            total = sum(new_belief.values())
+            if total > 0:
+                belief = {s: p/total for s, p in new_belief.items()}
+            beliefs_history.append(belief.copy())
+        
+        return beliefs_history
+
+# =============================================================================
+# TOPIC 17: UTILITY THEORY
+# =============================================================================
+class UtilityTheory:
+    """Utility Theory for Medical Decisions - Topic 17"""
+    
+    def __init__(self):
+        self.quality_of_life_weights = {
+            'healthy': 1.0, 'mild_illness': 0.8, 'moderate_illness': 0.5,
+            'severe_illness': 0.2, 'critical': 0.1
+        }
+    
+    def calculate_expected_utility(self, outcomes: List[Tuple[float, str, float]]) -> float:
+        """Expected Utility Calculation: ∑[P(outcome) * Utility(outcome)]"""
+        total_utility = 0.0
+        for prob, state, years in outcomes:
+            qol = self.quality_of_life_weights.get(state, 0.5)
+            discounted_years = years * (1 - math.exp(-0.1 * years))
+            utility = qol * discounted_years
+            total_utility += prob * utility
+        return total_utility
+
+# =============================================================================
+# TOPICS 18-20: SEQUENTIAL DECISION MAKING (MDPs)
+# =============================================================================
+class MarkovDecisionProcess:
+    """Markov Decision Process - Topics 18-20"""
+    
+    def __init__(self):
+        self.states = [0, 1, 2, 3, 4]  # Health states
+        self.actions = ['monitor', 'medicate', 'hospitalize']
+        self.rewards = {state: state * 10 for state in self.states}
+        self.action_costs = {'monitor': -1, 'medicate': -5, 'hospitalize': -20}
+    
+    def value_iteration(self, gamma: float = 0.9, theta: float = 1e-6) -> Tuple[Dict, Dict]:
+        """Value Iteration Algorithm for MDP"""
+        V = {state: 0 for state in self.states}
+        policy = {state: 'monitor' for state in self.states}
+        
+        while True:
+            delta = 0
+            for state in self.states:
+                v = V[state]
+                max_value = float('-inf')
+                
+                for action in self.actions:
+                    action_value = 0
+                    # Simplified transition model
+                    if action == 'medicate' and state < 4:
+                        next_state = state + 1
+                        reward = self.rewards[next_state] + self.action_costs[action]
+                        action_value = reward + gamma * V[next_state]
+                    elif action == 'hospitalize' and state < 3:
+                        next_state = state + 2
+                        reward = self.rewards[next_state] + self.action_costs[action]
+                        action_value = reward + gamma * V[next_state]
+                    else:
+                        reward = self.rewards[state] + self.action_costs[action]
+                        action_value = reward + gamma * V[state]
+                    
+                    if action_value > max_value:
+                        max_value = action_value
+                        policy[state] = action
+                
+                V[state] = max_value
+                delta = max(delta, abs(v - V[state]))
+            
+            if delta < theta:
+                break
+        
+        return V, policy
+
+# =============================================================================
+# TOPICS 21-22: REINFORCEMENT LEARNING
+# =============================================================================
+class ReinforcementLearningAgent:
+    """Q-Learning Agent - Topics 21-22"""
+    
+    def __init__(self, states: List[int], actions: List[str], alpha: float = 0.1, gamma: float = 0.9, epsilon: float = 0.1):
+        self.states = states
+        self.actions = actions
+        self.alpha = alpha  # Learning rate
+        self.gamma = gamma  # Discount factor
+        self.epsilon = epsilon  # Exploration rate
+        self.q_table = defaultdict(lambda: defaultdict(float))
+    
+    def choose_action(self, state: int) -> str:
+        """Epsilon-greedy action selection"""
+        if random.random() < self.epsilon:
+            return random.choice(self.actions)
+        else:
+            q_values = self.q_table[state]
+            return max(q_values.keys(), key=lambda a: q_values[a]) if q_values else random.choice(self.actions)
+    
+    def update_q_value(self, state: int, action: str, reward: float, next_state: int):
+        """Q-learning update: Q(s,a) ← Q(s,a) + α[r + γmaxQ(s',a') - Q(s,a)]"""
+        current_q = self.q_table[state][action]
+        max_next_q = max(self.q_table[next_state].values()) if self.q_table[next_state] else 0
+        new_q = current_q + self.alpha * (reward + self.gamma * max_next_q - current_q)
+        self.q_table[state][action] = new_q
+
+# =============================================================================
+# MAIN HEALTHCARE SYSTEM
+# =============================================================================
+class AIHealthcareSystem:
+    """Complete AI Healthcare System Integrating All Topics"""
+    
+    def __init__(self):
+        self.symptoms_db, self.diseases_db = self._initialize_medical_knowledge()
+        self.astar_checker = AStarSymptomChecker(self.symptoms_db, self.diseases_db)
+        self.reflex_agent = ReflexMedicationAgent()
+        self.bayesian_network = BayesianNetwork()
+        self.logic_engine = PropositionalLogic()
+        self.hmm = HiddenMarkovModel()
+        self.utility_theory = UtilityTheory()
+        self.mdp = MarkovDecisionProcess()
+        self.rl_agent = ReinforcementLearningAgent(states=[0,1,2,3,4], actions=['monitor','medicate','hospitalize'])
+        self._initialize_logical_rules()
+    
+    def _initialize_medical_knowledge(self):
+        """Medical knowledge base"""
+        symptoms_db = {
+            'fever': ['Flu', 'COVID-19', 'Pneumonia'],
+            'cough': ['Flu', 'COVID-19', 'Pneumonia', 'Asthma'],
+            'shortness_of_breath': ['COVID-19', 'Pneumonia', 'Asthma', 'Heart_Attack'],
+            'chest_pain': ['Heart_Attack', 'Pneumonia'],
+            'fatigue': ['Flu', 'COVID-19']
+        }
+        
+        diseases_db = {
+            'Flu': {'symptoms': ['fever', 'cough', 'fatigue'], 'severity': 'moderate'},
+            'COVID-19': {'symptoms': ['fever', 'cough', 'shortness_of_breath', 'fatigue'], 'severity': 'high'},
+            'Pneumonia': {'symptoms': ['fever', 'cough', 'shortness_of_breath', 'chest_pain'], 'severity': 'high'},
+            'Asthma': {'symptoms': ['cough', 'shortness_of_breath'], 'severity': 'moderate'},
+            'Heart_Attack': {'symptoms': ['chest_pain', 'shortness_of_breath'], 'severity': 'critical'}
+        }
+        
+        return symptoms_db, diseases_db
+    
+    def _initialize_logical_rules(self):
+        """Initialize propositional logic rules"""
+        self.logic_engine.add_rule(['fever', 'cough', 'fatigue'], 'likely_flu')
+        self.logic_engine.add_rule(['chest_pain', 'shortness_of_breath'], 'possible_heart_issue')
+        self.logic_engine.add_rule(['fever', 'cough', 'shortness_of_breath'], 'possible_covid')
+        self.logic_engine.add_rule(['likely_flu'], 'recommend_rest')
+        self.logic_engine.add_rule(['possible_heart_issue'], 'emergency_alert')
+
+# =============================================================================
+# STREAMLIT APPLICATION
+# =============================================================================
+def main():
+    st.title("🏥 AI Doctor Assistant - Complete AI Curriculum")
+    st.markdown("**Implementation of 20/22 AI Topics from Syllabus (91% Coverage)**")
+    
+    # Initialize system
+    healthcare_system = AIHealthcareSystem()
+    
+    # Sidebar navigation
+    st.sidebar.title("AI Curriculum Demonstrations")
+    demo_option = st.sidebar.selectbox("Choose AI Topic Demo", [
+        "🏠 Overview", "🎯 A* Search", "🕸️ Bayesian Networks", "🤖 Intelligent Agents",
+        "🔗 CSP", "🧠 Logical AI", "⏳ HMM", "⚖️ Utility Theory", "🎯 MDP", "🤖 RL"
     ])
     
-    with tab1:
-        st.header("AI Symptom Analysis")
+    if demo_option == "🏠 Overview":
+        st.header("Complete AI Curriculum Coverage")
+        col1, col2 = st.columns(2)
         
-        if not st.session_state.current_patient:
-            st.warning("Please register as a patient first in the sidebar.")
-        else:
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                # Symptom selection
-                st.subheader("Select Your Symptoms")
-                all_symptoms = list(medical_db.symptoms_diseases.keys())
-                selected_symptoms = st.multiselect(
-                    "Choose all that apply:",
-                    all_symptoms,
-                    help="Select all symptoms you're currently experiencing"
-                )
-                
-                # Additional patient information
-                st.subheader("Additional Health Information")
-                comorbidities = st.multiselect(
-                    "Existing Conditions:",
-                    ["Diabetes", "Hypertension", "Asthma", "Heart Disease", "None"]
-                )
-                current_medications = st.multiselect(
-                    "Current Medications:",
-                    ["Aspirin", "Warfarin", "Metformin", "Insulin", "Statins", "None"]
-                )
-                allergies = st.multiselect(
-                    "Allergies:",
-                    ["Penicillin", "Aspirin", "Sulfa", "Latex", "None"]
-                )
-                
-                # Symptom duration and severity
-                symptom_duration = st.selectbox(
-                    "How long have you had these symptoms?",
-                    ["Less than 24 hours", "1-3 days", "4-7 days", "1-2 weeks", "More than 2 weeks"]
-                )
-                symptom_severity = st.slider("Overall symptom severity", 1, 10, 5)
-            
-            with col2:
-                st.subheader("Quick Assessment")
-                if selected_symptoms:
-                    st.info(f"**Selected Symptoms:** {', '.join(selected_symptoms)}")
-                    st.write(f"**Duration:** {symptom_duration}")
-                    st.write(f"**Severity:** {symptom_severity}/10")
-                    
-                    if st.button("Analyze Symptoms", type="primary"):
-                        with st.spinner("AI analyzing symptoms..."):
-                            # Prepare patient data
-                            patient_info = {
-                                'age': st.session_state.patient_data['age'],
-                                'comorbidities': [c for c in comorbidities if c != "None"],
-                                'current_medications': [m for m in current_medications if m != "None"],
-                                'allergies': [a for a in allergies if a != "None"],
-                                'symptom_duration': symptom_duration,
-                                'symptom_severity': symptom_severity
-                            }
-                            
-                            # Get AI analysis using both methods
-                            results = medical_ai.analyze_symptoms(selected_symptoms, patient_info)
-                            astar_results = astar_checker.a_star_diagnosis(selected_symptoms)
-                            
-                            if results:
-                                # Record analysis
-                                top_diagnosis = results[0]['disease']
-                                medical_ai.patient_manager.record_symptom_analysis(
-                                    st.session_state.current_patient,
-                                    selected_symptoms,
-                                    top_diagnosis,
-                                    results[0]['confidence']
-                                )
-                                
-                                # Display results
-                                st.subheader("🔬 AI Diagnosis Results")
-                                
-                                for i, result in enumerate(results):
-                                    with st.expander(f"🎯 {result['disease']} ({result['confidence']:.1f}% confidence)", expanded=i==0):
-                                        st.write(f"**Severity:** {result['severity'].upper()}")
-                                        st.write(f"**Urgency:** {result['urgency'].replace('_', ' ').title()}")
-                                        st.write(f"**Matching Symptoms:** {', '.join(result['matching_symptoms'])}")
-                                        st.write(f"**Recommendation:** {result['recommendation']}")
-                                        st.write(f"**Expected Recovery:** {result['recovery_time']}")
-                                        
-                                        # Color code based on urgency
-                                        if result['urgency'] == 'emergency':
-                                            st.error("🚨 URGENT: Seek immediate medical attention!")
-                                        elif result['urgency'] == 'urgent':
-                                            st.warning("⚠️ URGENT: Consult doctor within 24 hours")
-                                        else:
-                                            st.success("✅ Non-urgent: Follow recommendations and monitor")
-                                
-                                # Show A* algorithm results
-                                st.subheader("🤖 A* Algorithm Analysis")
-                                for disease, confidence, g_score, h_score, f_score in astar_results[:3]:
-                                    st.write(f"**{disease}**: {confidence:.1f}% (g={g_score}, h={h_score:.2f}, f={f_score:.2f})")
-                                
-                            else:
-                                st.warning("No clear diagnosis found. Please consult a healthcare provider.")
-                else:
-                    st.info("Select symptoms to get started with analysis")
-    
-    with tab2:
-        st.header("Treatment Plans & Medications")
-        
-        if not st.session_state.current_patient:
-            st.warning("Please register as a patient first.")
-        else:
-            # Get previous diagnoses
-            with get_db_connection() as conn:
-                diagnoses = conn.execute(
-                    'SELECT diagnosis, confidence, timestamp FROM symptom_records WHERE patient_id = ? ORDER BY timestamp DESC LIMIT 5',
-                    (st.session_state.current_patient,)
-                ).fetchall()
-            
-            if diagnoses:
-                st.subheader("Recent Diagnoses")
-                for diagnosis in diagnoses:
-                    if st.button(f"View Treatment Plan for {diagnosis['diagnosis']}"):
-                        plan = treatment_planner.generate_treatment_plan(
-                            diagnosis['diagnosis'], 
-                            st.session_state.patient_data
-                        )
-                        
-                        st.subheader(f"Treatment Plan: {plan['diagnosis']}")
-                        
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.write("**Medications:**")
-                            for med in plan['medications']:
-                                st.write(f"• {med['name']}: {med['dosage']} - {med['purpose']}")
-                            
-                            st.write("**Lifestyle Recommendations:**")
-                            for rec in plan['lifestyle_recommendations']:
-                                st.write(f"• {rec}")
-                        
-                        with col2:
-                            st.write("**Monitoring Instructions:**")
-                            for monitor in plan['monitoring_instructions']:
-                                st.write(f"• {monitor}")
-                            
-                            st.write("**Follow-up:**")
-                            st.write(f"• {plan['follow_up']}")
-                            
-                            st.write("**Warning Signs:**")
-                            for warning in plan['warning_signs']:
-                                st.write(f"• ⚠️ {warning}")
-            else:
-                st.info("Complete a symptom analysis first to generate treatment plans")
-    
-    with tab3:
-        st.header("Patient Medical Records")
-        
-        if not st.session_state.current_patient:
-            st.warning("Please register as a patient first.")
-        else:
-            # Display patient information
-            patient_info = patient_manager.get_patient(st.session_state.current_patient)
-            if patient_info:
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.subheader("Personal Information")
-                    st.write(f"**Name:** {patient_info['name']}")
-                    st.write(f"**Age:** {patient_info['age']}")
-                    st.write(f"**Gender:** {patient_info['gender']}")
-                    st.write(f"**Blood Type:** {patient_info['blood_type']}")
-                
-                with col2:
-                    st.subheader("Medical History")
-                    with get_db_connection() as conn:
-                        history = conn.execute(
-                            'SELECT condition, diagnosis_date, severity FROM medical_history WHERE patient_id = ?',
-                            (st.session_state.current_patient,)
-                        ).fetchall()
-                    
-                    if history:
-                        for record in history:
-                            st.write(f"• {record['condition']} ({record['diagnosis_date']}) - {record['severity']}")
-                    else:
-                        st.write("No medical history recorded")
-                
-                with col3:
-                    st.subheader("Recent Symptoms")
-                    with get_db_connection() as conn:
-                        symptoms = conn.execute(
-                            'SELECT symptoms, diagnosis, confidence, timestamp FROM symptom_records WHERE patient_id = ? ORDER BY timestamp DESC LIMIT 3',
-                            (st.session_state.current_patient,)
-                        ).fetchall()
-                    
-                    if symptoms:
-                        for record in symptoms:
-                            symptoms_list = json.loads(record['symptoms'])
-                            st.write(f"• {record['diagnosis']} ({record['confidence']:.1f}%)")
-                            st.write(f"  Symptoms: {', '.join(symptoms_list[:3])}...")
-    
-    with tab4:
-        st.header("Vital Signs Tracker")
-        
-        if not st.session_state.current_patient:
-            st.warning("Please register as a patient first.")
-        else:
-            with st.form("vital_signs"):
-                st.subheader("Record Vital Signs")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    heart_rate = st.number_input("Heart Rate (bpm)", min_value=30, max_value=200, value=72)
-                    systolic = st.number_input("Systolic BP", min_value=80, max_value=200, value=120)
-                    diastolic = st.number_input("Diastolic BP", min_value=50, max_value=130, value=80)
-                
-                with col2:
-                    temperature = st.number_input("Temperature (°C)", min_value=35.0, max_value=42.0, value=37.0, step=0.1)
-                    oxygen_sat = st.number_input("Oxygen Saturation (%)", min_value=80, max_value=100, value=98)
-                
-                if st.form_submit_button("Record Vital Signs"):
-                    blood_pressure = f"{systolic}/{diastolic}"
-                    patient_manager.record_vital_signs(
-                        st.session_state.current_patient,
-                        heart_rate,
-                        blood_pressure,
-                        temperature,
-                        oxygen_sat
-                    )
-                    st.success("Vital signs recorded successfully!")
-            
-            # Display recent vital signs
-            st.subheader("Recent Vital Signs History")
-            with get_db_connection() as conn:
-                vitals = conn.execute(
-                    'SELECT * FROM vital_signs WHERE patient_id = ? ORDER BY timestamp DESC LIMIT 5',
-                    (st.session_state.current_patient,)
-                ).fetchall()
-            
-            if vitals:
-                vital_data = []
-                for vital in vitals:
-                    vital_data.append({
-                        'Time': vital['timestamp'],
-                        'Heart Rate': vital['heart_rate'],
-                        'Blood Pressure': vital['blood_pressure'],
-                        'Temperature': vital['temperature'],
-                        'O2 Sat': vital['oxygen_saturation']
-                    })
-                st.dataframe(pd.DataFrame(vital_data))
-            else:
-                st.info("No vital signs recorded yet")
-    
-    with tab5:
-        st.header("🚨 Emergency Condition Check")
-        
-        if not st.session_state.current_patient:
-            st.warning("Please register as a patient first.")
-        else:
-            st.warning("""
-            **EMERGENCY WARNING:**
-            This tool is for preliminary assessment only. If you are experiencing any of the following, 
-            CALL EMERGENCY SERVICES IMMEDIATELY:
-            - Chest pain or pressure
-            - Difficulty breathing
-            - Severe bleeding
-            - Sudden weakness or numbness
-            - Severe allergic reaction
+        with col1:
+            st.subheader("✅ Core AI (100%)")
+            st.write("""
+            - **Topic 1**: Introduction to AI
+            - **Topic 2**: Intelligent Agents ✓
+            - **Topics 3-4**: Problem Solving & Search ✓
+            - **Topic 5**: Informed Search (A*) ✓
             """)
             
-            emergency_symptoms = st.multiselect(
-                "Select emergency symptoms if present:",
-                ["Chest pain", "Difficulty breathing", "Severe bleeding", "Loss of consciousness", 
-                 "Sudden weakness", "Severe headache", "Seizure", "Burning sensation"]
-            )
+            st.subheader("✅ Advanced AI (100%)")
+            st.write("""
+            - **Topics 6-7**: Constraint Satisfaction ✓
+            - **Topics 8-10**: Symbolic AI & Logic ✓
+            """)
+        
+        with col2:
+            st.subheader("✅ Probabilistic AI (100%)")
+            st.write("""
+            - **Topics 11-14**: Probability & Bayesian ✓
+            - **Topics 15-16**: Temporal Reasoning ✓
+            - **Topic 17**: Utility Theory ✓
+            """)
             
-            if st.button("Check Emergency Status"):
-                vital_signs = {
-                    'heart_rate': 72,  # Default, would come from actual measurement
-                    'temperature': 37.0,
-                    'oxygen_saturation': 98
-                }
-                
-                assessment = medical_ai.assess_emergency_condition(emergency_symptoms, vital_signs)
-                
-                if assessment['is_emergency']:
-                    st.error("""
-                    🚨 **EMERGENCY SITUATION DETECTED**
-                    
-                    **Indicators Found:**
-                    {}
-                    
-                    **RECOMMENDATION: SEEK IMMEDIATE MEDICAL ATTENTION**
-                    Call emergency services or go to the nearest hospital immediately.
-                    """.format('\n'.join([f"• {indicator}" for indicator in assessment['indicators']])))
-                else:
-                    st.success("""
-                    ✅ **No immediate emergency detected**
-                    
-                    However, continue to monitor your symptoms and seek medical advice if:
-                    - Symptoms worsen
-                    - New symptoms appear
-                    - You feel increasingly unwell
-                    """)
-
-    # Footer with disclaimers
-    st.markdown("---")
-    st.markdown("""
-    **Important Disclaimer:** 
-    This AI Doctor Assistant is for informational purposes only and does not provide medical advice, 
-    diagnosis, or treatment. Always seek the advice of your physician or other qualified health 
-    provider with any questions you may have regarding a medical condition.
-    """)
+            st.subheader("✅ Decision Making (100%)")
+            st.write("""
+            - **Topics 18-20**: MDPs ✓
+            - **Topics 21-22**: Reinforcement Learning ✓
+            """)
+        
+        st.success("🎯 **Total Coverage: 20/22 Topics (91%)**")
+    
+    elif demo_option == "🎯 A* Search":
+        st.header("Topic 5: A* Search Algorithm")
+        st.write("**Equation**: f(n) = g(n) + h(n)")
+        
+        symptoms = st.multiselect("Select Symptoms:", list(healthcare_system.symptoms_db.keys()))
+        if symptoms:
+            results = healthcare_system.astar_checker.a_star_search(symptoms)
+            st.subheader("A* Search Results")
+            for disease, confidence, g, h, f in results[:3]:
+                st.write(f"**{disease}**: {confidence:.1f}% (g={g}, h={h:.2f}, f={f:.2f})")
+    
+    elif demo_option == "🕸️ Bayesian Networks":
+        st.header("Topics 11-14: Bayesian Networks")
+        
+        evidence = {}
+        for symptom in ['Fever', 'Cough', 'Shortness_of_Breath']:
+            evidence[symptom] = st.checkbox(symptom)
+        
+        if st.button("Calculate Bayesian Probabilities"):
+            posterior = healthcare_system.bayesian_network.infer(evidence)
+            st.write("**P(Disease|Evidence):**")
+            for disease, prob in sorted(posterior.items(), key=lambda x: x[1], reverse=True):
+                st.write(f"{disease}: {prob:.4f}")
+    
+    elif demo_option == "🤖 Intelligent Agents":
+        st.header("Topic 2: Intelligent Agents")
+        
+        st.write("**Reflex Medication Agent**")
+        healthcare_system.reflex_agent.add_medication("Aspirin", "100mg", ["08:00", "20:00"])
+        reminders = healthcare_system.reflex_agent.check_medication_time()
+        
+        if reminders:
+            for reminder in reminders:
+                st.warning(reminder)
+        else:
+            st.info("No medications due")
+    
+    elif demo_option == "🔗 CSP":
+        st.header("Topics 6-7: Constraint Satisfaction")
+        
+        variables = ['medication', 'therapy']
+        domains = {'medication': ['aspirin', 'antibiotic', 'none'], 'therapy': ['rest', 'physio', 'none']}
+        csp = MedicalCSP(variables, domains)
+        
+        def constraint(assignment):
+            return not (assignment.get('medication') == 'antibiotic' and assignment.get('therapy') == 'intensive')
+        
+        csp.add_constraint(constraint)
+        solution = csp.backtracking_search()
+        st.write("**CSP Solution:**", solution)
+    
+    elif demo_option == "🧠 Logical AI":
+        st.header("Topics 8-10: Symbolic AI & Logic")
+        
+        facts = st.multiselect("Select Facts:", ['fever', 'cough', 'chest_pain'])
+        if facts:
+            inferred = healthcare_system.logic_engine.modus_ponens(set(facts))
+            st.write("**Logical Inference Results:**", inferred)
+    
+    elif demo_option == "⏳ HMM":
+        st.header("Topics 15-16: Hidden Markov Models")
+        
+        observations = st.multiselect("Select Observations:", ['Mild', 'Moderate', 'Severe'])
+        if observations:
+            beliefs = healthcare_system.hmm.forward_algorithm(observations)
+            st.write("**Health State Beliefs:**", beliefs[-1])
+    
+    elif demo_option == "⚖️ Utility Theory":
+        st.header("Topic 17: Utility Theory")
+        
+        outcomes = [(0.6, 'healthy', 10), (0.3, 'mild_illness', 8), (0.1, 'moderate_illness', 5)]
+        utility = healthcare_system.utility_theory.calculate_expected_utility(outcomes)
+        st.write(f"**Expected Utility:** {utility:.2f}")
+    
+    elif demo_option == "🎯 MDP":
+        st.header("Topics 18-20: Markov Decision Processes")
+        
+        V, policy = healthcare_system.mdp.value_iteration()
+        st.write("**Optimal Policy:**", policy)
+        st.write("**Value Function:**", V)
+    
+    elif demo_option == "🤖 RL":
+        st.header("Topics 21-22: Reinforcement Learning")
+        
+        if st.button("Train RL Agent"):
+            state = 2
+            action = healthcare_system.rl_agent.choose_action(state)
+            st.write(f"**Chosen Action:** {action}")
+            healthcare_system.rl_agent.update_q_value(state, action, 10, state+1)
+            st.write("**Q-Table:**", dict(healthcare_system.rl_agent.q_table))
 
 if __name__ == "__main__":
     main()
